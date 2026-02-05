@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Firebase Test</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+</head>
+<body>
+    <h1>Firebase Test</h1>
+    <div id="status">Tester...</div>
+    <button onclick="testFirebase()">Test Firebase</button>
+    <div id="result"></div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyB_HvourWdfyNPzca1SHZyNhzm6XNN4iT8",
+            authDomain: "nettsjekk-d8c0b.firebaseapp.com",
+            databaseURL: "https://nettsjekk-d8c0b-default-rtdb.firebaseio.com",
+            projectId: "nettsjekk-d8c0b",
+            storageBucket: "nettsjekk-d8c0b.firebasestorage.app",
+            messagingSenderId: "761922172282",
+            appId: "1:761922172282:web:981ae4c2a313e7d09412c3"
+        };
+
+        try {
+            firebase.initializeApp(firebaseConfig);
+            document.getElementById('status').innerHTML = '✅ Firebase initialisert';
+        } catch(e) {
+            document.getElementById('status').innerHTML = '❌ Feil: ' + e.message;
+        }
+
+        function testFirebase() {
+            const db = firebase.database();
+            const testRef = db.ref('test/' + Date.now());
+            
+            document.getElementById('result').innerHTML = 'Skriver til database...';
+            
+            testRef.set({
+                timestamp: Date.now(),
+                message: 'Test'
+            }).then(() => {
+                document.getElementById('result').innerHTML = '✅ SUCCESS! Data skrevet til Firebase';
+            }).catch((error) => {
+                document.getElementById('result').innerHTML = '❌ ERROR: ' + error.message;
+            });
+        }
+    </script>
+</body>
+</html>
