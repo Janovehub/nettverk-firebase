@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nettverksmonitor - Dashboard</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #1a1a2e; color: #eee; min-height: 100vh; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .nav-links { text-align: center; margin-bottom: 20px; }
+        .nav-links a { color: #4ecca3; text-decoration: none; padding: 10px 20px; background: #16213e; border-radius: 5px; display: inline-block; }
+        header { text-align: center; margin-bottom: 30px; }
+        h1 { font-size: 1.8rem; margin-bottom: 10px; color: #fff; }
+        .section { background: #16213e; border-radius: 10px; padding: 30px; margin-bottom: 20px; }
+        .input-group { margin-bottom: 20px; }
+        .input-group label { display: block; margin-bottom: 8px; color: #888; font-size: 0.9rem; }
+        .input-group input { width: 100%; padding: 12px; background: #0f0f23; border: 2px solid #3498db; border-radius: 5px; color: #fff; font-size: 1rem; }
+        .btn { padding: 12px 24px; border: none; border-radius: 5px; cursor: pointer; font-size: 1rem; margin: 5px; }
+        .btn-primary { background: #4ecca3; color: #1a1a2e; font-weight: 600; }
+        .btn-secondary { background: #3498db; color: #fff; }
+        .group-code-display { background: #0f0f23; padding: 20px; border-radius: 8px; text-align: center; margin-bottom: 20px; }
+        .group-code { font-size: 2.5rem; font-weight: 700; color: #4ecca3; letter-spacing: 5px; margin: 10px 0; }
+        .device-list { display: grid; gap: 15px; }
+        .device-card { background: #0f0f23; border-radius: 8px; padding: 15px; display: flex; align-items: center; gap: 15px; }
+        .device-icon { font-size: 2rem; }
+        .device-info { flex: 1; }
+        .device-name { font-size: 1.1rem; font-weight: 600; margin-bottom: 5px; }
+        .device-status { font-size: 0.85rem; color: #888; }
+        .status-indicator { width: 16px; height: 16px; border-radius: 50%; }
+        .status-indicator.online { background: #4ecca3; box-shadow: 0 0 10px #4ecca3; }
+        .status-indicator.offline { background: #e94560; }
+        .error { color: #e94560; margin-top: 10px; }
+        .success { color: #4ecca3; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="nav-links">
+            <a href="sender.html">→ Legg til enhet</a>
+        </div>
+
+        <header>
+            <h1>Dashboard</h1>
+            <p>Se alle dine enheter</p>
+        </header>
+
+        <div id="login-section" class="section">
+            <h2>Koble til gruppe</h2>
+            <div class="input-group">
+                <label>Invite-kode:</label>
+                <input type="text" id="group-code-input" maxlength="6" placeholder="ABC123">
+            </div>
+            <button class="btn btn-primary" onclick="joinGroup()">Koble til</button>
+            <div id="login-error" class="error"></div>
+            
+            <div style="margin-top:30px; padding-top:20px; border-top:1px solid #333;">
+                <h3>Eller opprett ny</h3>
+                <button class="btn btn-secondary" onclick="createGroup()">+ Opprett gruppe</button>
+            </div>
+        </div>
+
+        <div id="dashboard-section" class="section" style="display:none;">
+            <div class="group-code-display">
+                <div>Din kode:</div>
+                <div class="group-code" id="current-code"></div>
+                <button class="btn btn-secondary" onclick="copyCode()">Kopier</button>
+            </div>
+            
+            <h2>Enheter</h2>
+            <div class="device-list" id="device-list">
+                <p style="text-align:center; color:#888;">Ingen enheter...</p>
+            </div>
+            
+            <div style="margin-top:20px; text-align:center;">
+                <button class="btn btn-secondary" onclick="leaveGroup()">Forlat</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyB_HvourWdfyNPzca1SHZyNhzm6XNN4iT8",
+            authDomain: "nettsjekk-d8c0b.firebaseapp.com",
+            databaseURL: "https://nettsjekk-d8c0b-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "nettsjekk-d8c0b",
+            storageBucket: "nettsjekk-d8c0b.firebasestorage.app",
+            messagingSenderId: "761922172282",
+            appId: "1:761922172282:web:981ae4c2a313e7d09412c3"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        
+        let currentGroup = null;
+        let devicesRef = null;
+
+        function generateCode() {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+            let code = '';
+            for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+            return code;
+        }
+
+        function createGroup() {
+            const code = generateCode();
+            
+            db.ref('groups/' + code).set({ createdAt: Date.now() })
+                .then(() => {
+                    currentGroup = code;
+                    document.getElementById('current-code').textContent = code;
+                    document.getElementById('login-section').style.display = 'none';
+                    document.getElementById('dashboard-section').style.display = 'block';
+                    
+                    devicesRef = db.ref('groups/' + code + '/devices');
+                    devicesRef.on('value', (snap) => updateDevices(snap.val()));
+                })
+                .catch((err) => {
+                    document.getElementById('login-error').textContent = 'Feil: ' + err.message;
+                });
+        }
+
+        function joinGroup() {
+            const code = document.getElementById('group-code-input').value.toUpperCase();
+            if (code.length !== 6) {
+                document.getElementById('login-error').textContent = 'Kode må være 6 tegn';
+                return;
+            }
+
+            db.ref('groups/' + code).once('value')
+                .then((snap) => {
+                    if (snap.exists()) {
+                        currentGroup = code;
+                        document.getElementById('current-code').textContent = code;
+                        document.getElementById('login-section').style.display = 'none';
+                        document.getElementById('dashboard-section').style.display = 'block';
+                        
+                        devicesRef = db.ref('groups/' + code + '/devices');
+                        devicesRef.on('value', (snap) => updateDevices(snap.val()));
+                    } else {
+                        document.getElementById('login-error').textContent = 'Gruppen finnes ikke';
+                    }
+                });
+        }
+
+        function updateDevices(devices) {
+            const list = document.getElementById('device-list');
+            if (!devices) {
+                list.innerHTML = '<p style="text-align:center; color:#888;">Ingen enheter</p>';
+                return;
+            }
+
+            list.innerHTML = '';
+            Object.keys(devices).forEach(id => {
+                const d = devices[id];
+                const online = d.online && (Date.now() - d.lastSeen < 15000);
+                
+                list.innerHTML += `
+                    <div class="device-card">
+                        <div class="device-icon">📱</div>
+                        <div class="device-info">
+                            <div class="device-name">${d.name}</div>
+                            <div class="device-status">${online ? '🟢 Online' : '🔴 Offline'} • ${d.networkType}</div>
+                        </div>
+                        <div class="status-indicator ${online ? 'online' : 'offline'}"></div>
+                    </div>
+                `;
+            });
+        }
+
+        function copyCode() {
+            navigator.clipboard.writeText(currentGroup);
+            alert('Kode kopiert: ' + currentGroup);
+        }
+
+        function leaveGroup() {
+            if (devicesRef) devicesRef.off();
+            currentGroup = null;
+            document.getElementById('login-section').style.display = 'block';
+            document.getElementById('dashboard-section').style.display = 'none';
+        }
+    </script>
+</body>
+</html>
